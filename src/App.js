@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, createContext, useContext } from "react";
 
-const BASE_URL = "http://mytaskmanagement.somee.com/TaskManagmentAPI/api";
+const BASE_URL = "/api";
 
 const AuthContext = createContext(null);
 const useAuth = () => useContext(AuthContext);
