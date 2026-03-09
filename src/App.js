@@ -374,7 +374,6 @@ function Dashboard() {
   );
 }
 
-const getMsg = (res) => res?.Message || res?.message || res?.data?.Message || res?.data?.message || res?.Data?.Message || "Something went wrong";
 // ─── Tasks View ───────────────────────────────────────────────────────────────
 function TasksView({ showToast }) {
   const { isAdmin } = useAuth();
