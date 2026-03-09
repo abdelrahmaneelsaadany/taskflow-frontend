@@ -53,6 +53,18 @@ const api = {
   getAllEmployees:  () => authFetch(`${BASE_URL}/Employee/getAll?getAll=true`),
 };
 
+// ─── Universal Error Extractor ────────────────────────────────────────────────
+const extractError = (res) => {
+  if (!res) return "Something went wrong";
+  // لو في Data فيها validation errors
+  const data = res.Data || res.data;
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    const msgs = Object.values(data).flat().filter(Boolean);
+    if (msgs.length > 0) return msgs.join(" | ");
+  }
+  return res.Message || res.message || "Something went wrong";
+};
+
 const PRIORITY_COLOR = {
   1: { bg: "#1a2a1a", text: "#4ade80", border: "#166534" },
   2: { bg: "#2a2200", text: "#fbbf24", border: "#92400e" },
@@ -250,31 +262,27 @@ function AuthPage() {
     try {
       if (mode === "register") {
         // ── Register ──
-        const payload = { name: form.name, email: form.email, password: form.password, role: form.role, department: form.department };
+        const payload = { name: form.name, email: form.email, password: form.password, role: "Employee", department: form.department };
         const res = await api.register(payload);
 
-        // Register ناجح لو راجع id أو success
-        if (res?.id || res?.success) {
+        if (res?.id || res?.success === true) {
           setSuccess("✅ Account created! Please sign in.");
           setTimeout(() => switchMode("login"), 1500);
-        } else if (res?.data && typeof res.data === "object") {
-          const msgs = Object.values(res.data).flat().join(", ");
-          setError(msgs || res.message || "Registration failed");
         } else {
-          setError(res?.message || "Registration failed");
+          setError(extractError(res));
         }
       } else {
         // ── Login ──
         const payload = { email: form.email, password: form.password };
         const res = await api.login(payload);
 
-            if (res?.token) {
-              login(res.token);
-            } else if (res?.data?.token) {
-              login(res.data.token);
-            } else {
-              setError(res?.message || "Invalid credentials");
-            }
+        if (res?.token) {
+          login(res.token);
+        } else if (res?.data?.token) {
+          login(res.data.token);
+        } else {
+          setError(extractError(res));
+        }
       }
     } catch { setError("Cannot connect to server"); }
     finally { setLoading(false); }
@@ -296,7 +304,6 @@ function AuthPage() {
               <label className="form-label">Full Name *</label>
               <input className="form-input" placeholder="Your name" value={form.name} onChange={set("name")} />
             </div>
-
             <div className="form-group">
               <label className="form-label">Department *</label>
               <input className="form-input" placeholder="e.g. IT, HR, Finance..." value={form.department} onChange={set("department")} />
@@ -367,6 +374,7 @@ function Dashboard() {
   );
 }
 
+const getMsg = (res) => res?.Message || res?.message || res?.data?.Message || res?.data?.message || res?.Data?.Message || "Something went wrong";
 // ─── Tasks View ───────────────────────────────────────────────────────────────
 function TasksView({ showToast }) {
   const { isAdmin } = useAuth();
@@ -414,24 +422,33 @@ function TasksView({ showToast }) {
     setSaving(true);
     try {
       const res = modal === "create" ? await api.createTask(form) : await api.updateTask(editId, form);
-      if (res.success) { await loadTasks(); showToast(modal === "create" ? "✅ Task created!" : "✏️ Task updated!"); closeModal(); }
-      else showToast("❌ " + (res.message || "Error"));
+      if (res.success || res.Success) {
+        await loadTasks();
+        showToast(modal === "create" ? "✅ Task created!" : "✏️ Task updated!");
+        closeModal();
+      } else {
+        showToast("❌ " + extractError(res));
+      }
     } catch { showToast("❌ Network error"); }
     finally { setSaving(false); }
   };
 
   const handleDelete = async () => {
     setSaving(true);
-    try { await api.deleteTask(deleteTarget.id); await loadTasks(); showToast("🗑️ Task deleted"); closeModal(); }
-    catch { showToast("❌ Network error"); }
+    try {
+      const res = await api.deleteTask(deleteTarget.id);
+      const failed = res?.success === false || res?.Success === false;
+      if (failed) { showToast("❌ " + extractError(res)); closeModal(); }
+      else { await loadTasks(); showToast("🗑️ Task deleted"); closeModal(); }
+    } catch { showToast("❌ Network error"); }
     finally { setSaving(false); }
   };
 
   const handleStatusChange = async (task, newStatus) => {
     try {
       const res = await api.updateTaskStatus(task.id, task, newStatus);
-      if (res.success) { await loadTasks(); showToast("✅ Status updated!"); }
-      else showToast("❌ " + (res.message || "Error"));
+      if (res.success || res.Success) { await loadTasks(); showToast("✅ Status updated!"); }
+      else showToast("❌ " + extractError(res));
     } catch { showToast("❌ Network error"); }
   };
 
